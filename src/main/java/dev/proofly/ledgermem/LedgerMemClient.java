@@ -99,7 +99,8 @@ public final class LedgerMemClient {
             byte[] respBody = resp.body();
 
             if (isRetryableStatus(status) && attempt < maxRetries) {
-                sleepBackoff(attempt);
+                long hintMs = parseRetryAfterMs(resp.headers().firstValue("retry-after").orElse(null));
+                sleepBackoff(attempt, hintMs);
                 continue;
             }
 
@@ -117,14 +118,51 @@ public final class LedgerMemClient {
     }
 
     private static boolean isRetryableStatus(int status) {
+        // 501 Not Implemented is a permanent failure — retrying wastes round-trips.
+        if (status == 501) return false;
         return status == 429 || (status >= 500 && status < 600);
     }
 
     private static void sleepBackoff(int attempt) throws InterruptedException {
-        long shifted = RETRY_BASE_DELAY_MS << Math.min(attempt, 20);
-        long capped = Math.min(shifted, RETRY_MAX_DELAY_MS);
-        long jittered = ThreadLocalRandom.current().nextLong(0, capped + 1);
-        Thread.sleep(jittered);
+        sleepBackoff(attempt, -1L);
+    }
+
+    private static void sleepBackoff(int attempt, long hintMs) throws InterruptedException {
+        long delay;
+        if (hintMs >= 0) {
+            delay = Math.min(hintMs, RETRY_MAX_DELAY_MS);
+        } else {
+            long shifted = RETRY_BASE_DELAY_MS << Math.min(attempt, 20);
+            long capped = Math.min(shifted, RETRY_MAX_DELAY_MS);
+            delay = ThreadLocalRandom.current().nextLong(0, capped + 1);
+        }
+        try {
+            Thread.sleep(delay);
+        } catch (InterruptedException ie) {
+            // Restore interrupt status so callers can detect it deterministically.
+            Thread.currentThread().interrupt();
+            throw ie;
+        }
+    }
+
+    /** Parse Retry-After (delta-seconds or HTTP-date). Returns -1 if absent or unparseable. */
+    private static long parseRetryAfterMs(String value) {
+        if (value == null || value.isEmpty()) return -1L;
+        String trimmed = value.trim();
+        try {
+            long secs = Long.parseLong(trimmed);
+            return Math.max(0L, secs * 1000L);
+        } catch (NumberFormatException ignored) {
+            // fall through to HTTP-date
+        }
+        try {
+            java.time.ZonedDateTime when = java.time.ZonedDateTime.parse(
+                    trimmed, java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME);
+            long delta = java.time.Duration.between(java.time.ZonedDateTime.now(when.getZone()), when).toMillis();
+            return Math.max(0L, delta);
+        } catch (java.time.format.DateTimeParseException ignored) {
+            return -1L;
+        }
     }
 
     private String extractMessage(String raw) {
