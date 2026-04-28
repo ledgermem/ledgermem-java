@@ -16,6 +16,7 @@ import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 /** Official Java client for the LedgerMem API. */
@@ -23,6 +24,9 @@ public final class LedgerMemClient {
 
     private static final String DEFAULT_BASE_URL = "https://api.proofly.dev";
     private static final String USER_AGENT = "ledgermem-java/0.1.0";
+    private static final int DEFAULT_MAX_RETRIES = 3;
+    private static final long RETRY_BASE_DELAY_MS = 200L;
+    private static final long RETRY_MAX_DELAY_MS = 5_000L;
 
     private final String apiKey;
     private final String workspaceId;
@@ -30,6 +34,7 @@ public final class LedgerMemClient {
     private final HttpClient http;
     private final ObjectMapper mapper;
     private final MemoriesService memories;
+    private final int maxRetries;
 
     private LedgerMemClient(Builder b) {
         this.apiKey = first(b.apiKey, System.getenv("LEDGERMEM_API_KEY"));
@@ -41,6 +46,7 @@ public final class LedgerMemClient {
                 : HttpClient.newBuilder().connectTimeout(b.timeout).build();
         this.mapper = new ObjectMapper().disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
         this.memories = new MemoriesService(this);
+        this.maxRetries = Math.max(0, b.maxRetries);
     }
 
     public static Builder builder() {
@@ -58,33 +64,67 @@ public final class LedgerMemClient {
     <T> T request(String method, String path, Map<String, String> query, Object body, Class<T> responseType)
             throws IOException, InterruptedException {
         URI uri = URI.create(baseUrl + path + buildQuery(query));
-        HttpRequest.Builder rb = HttpRequest.newBuilder(uri)
-                .timeout(Duration.ofSeconds(30))
-                .header("Accept", "application/json")
-                .header("User-Agent", USER_AGENT);
-        if (apiKey != null) rb.header("Authorization", "Bearer " + apiKey);
-        if (workspaceId != null) rb.header("x-workspace-id", workspaceId);
+        // Pre-serialize the body once so we can resend it cheaply on retry.
+        byte[] bodyBytes = body == null ? null : mapper.writeValueAsBytes(body);
 
-        HttpRequest.BodyPublisher pub = HttpRequest.BodyPublishers.noBody();
-        if (body != null) {
-            byte[] bytes = mapper.writeValueAsBytes(body);
-            pub = HttpRequest.BodyPublishers.ofByteArray(bytes);
-            rb.header("Content-Type", "application/json");
-        }
-        rb.method(method, pub);
+        IOException lastIo = null;
+        for (int attempt = 0; attempt <= maxRetries; attempt++) {
+            HttpRequest.Builder rb = HttpRequest.newBuilder(uri)
+                    .timeout(Duration.ofSeconds(30))
+                    .header("Accept", "application/json")
+                    .header("User-Agent", USER_AGENT);
+            if (apiKey != null) rb.header("Authorization", "Bearer " + apiKey);
+            if (workspaceId != null) rb.header("x-workspace-id", workspaceId);
 
-        HttpResponse<byte[]> resp = http.send(rb.build(), HttpResponse.BodyHandlers.ofByteArray());
-        int status = resp.statusCode();
-        byte[] respBody = resp.body();
+            HttpRequest.BodyPublisher pub = HttpRequest.BodyPublishers.noBody();
+            if (bodyBytes != null) {
+                pub = HttpRequest.BodyPublishers.ofByteArray(bodyBytes);
+                rb.header("Content-Type", "application/json");
+            }
+            rb.method(method, pub);
 
-        if (status >= 400) {
-            String raw = respBody == null ? "" : new String(respBody, StandardCharsets.UTF_8);
-            throw new ApiException(status, extractMessage(raw), raw);
+            HttpResponse<byte[]> resp;
+            try {
+                resp = http.send(rb.build(), HttpResponse.BodyHandlers.ofByteArray());
+            } catch (java.net.http.HttpConnectTimeoutException | java.net.ConnectException ex) {
+                lastIo = ex;
+                if (attempt >= maxRetries) throw ex;
+                sleepBackoff(attempt);
+                continue;
+            } catch (IOException ex) {
+                throw ex;
+            }
+
+            int status = resp.statusCode();
+            byte[] respBody = resp.body();
+
+            if (isRetryableStatus(status) && attempt < maxRetries) {
+                sleepBackoff(attempt);
+                continue;
+            }
+
+            if (status >= 400) {
+                String raw = respBody == null ? "" : new String(respBody, StandardCharsets.UTF_8);
+                throw new ApiException(status, extractMessage(raw), raw);
+            }
+            if (status == 204 || responseType == Void.class || respBody == null || respBody.length == 0) {
+                return null;
+            }
+            return mapper.readValue(respBody, responseType);
         }
-        if (status == 204 || responseType == Void.class || respBody == null || respBody.length == 0) {
-            return null;
-        }
-        return mapper.readValue(respBody, responseType);
+        if (lastIo != null) throw lastIo;
+        throw new IOException("ledgermem: request failed after retries");
+    }
+
+    private static boolean isRetryableStatus(int status) {
+        return status == 429 || (status >= 500 && status < 600);
+    }
+
+    private static void sleepBackoff(int attempt) throws InterruptedException {
+        long shifted = RETRY_BASE_DELAY_MS << Math.min(attempt, 20);
+        long capped = Math.min(shifted, RETRY_MAX_DELAY_MS);
+        long jittered = ThreadLocalRandom.current().nextLong(0, capped + 1);
+        Thread.sleep(jittered);
     }
 
     private String extractMessage(String raw) {
@@ -123,6 +163,7 @@ public final class LedgerMemClient {
         private String baseUrl;
         private HttpClient httpClient;
         private Duration timeout = Duration.ofSeconds(10);
+        private int maxRetries = DEFAULT_MAX_RETRIES;
 
         public Builder apiKey(String apiKey) { this.apiKey = apiKey; return this; }
         public Builder workspaceId(String workspaceId) { this.workspaceId = workspaceId; return this; }
@@ -130,6 +171,10 @@ public final class LedgerMemClient {
         public Builder httpClient(HttpClient httpClient) { this.httpClient = httpClient; return this; }
         public Builder connectTimeout(Duration timeout) {
             this.timeout = Objects.requireNonNull(timeout);
+            return this;
+        }
+        public Builder maxRetries(int maxRetries) {
+            this.maxRetries = maxRetries;
             return this;
         }
 
