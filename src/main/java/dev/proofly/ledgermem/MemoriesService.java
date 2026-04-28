@@ -7,6 +7,8 @@ import dev.proofly.ledgermem.model.Memory;
 import dev.proofly.ledgermem.model.UpdateMemoryInput;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 /** Memory CRUD operations. */
@@ -23,11 +25,17 @@ public final class MemoriesService {
     }
 
     public Memory update(String id, UpdateMemoryInput input) throws IOException, InterruptedException {
-        return client.request("PATCH", "/v1/memories/" + id, Map.of(), input, Memory.class);
+        return client.request("PATCH", "/v1/memories/" + encodeId(id), Map.of(), input, Memory.class);
     }
 
     public void delete(String id) throws IOException, InterruptedException {
-        client.request("DELETE", "/v1/memories/" + id, Map.of(), null, Void.class);
+        client.request("DELETE", "/v1/memories/" + encodeId(id), Map.of(), null, Void.class);
+    }
+
+    private static String encodeId(String id) {
+        // URLEncoder targets form-encoding (space -> "+"); for path segments
+        // we replace "+" back to "%20" so caller-supplied ids cannot break the URL.
+        return URLEncoder.encode(id, StandardCharsets.UTF_8).replace("+", "%20");
     }
 
     public ListMemoriesResult list(ListMemoriesInput input) throws IOException, InterruptedException {
