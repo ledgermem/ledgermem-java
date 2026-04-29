@@ -6,13 +6,13 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>dev.proofly</groupId>
-    <artifactId>ledgermem</artifactId>
+    <artifactId>getmnemo</artifactId>
     <version>0.1.0</version>
     <packaging>jar</packaging>
 
-    <name>ledgermem</name>
-    <description>Official Java SDK for the LedgerMem API</description>
-    <url>https://proofly.dev</url>
+    <name>getmnemo</name>
+    <description>Official Java SDK for the Mnemo API</description>
+    <url>https://getmnemo.xyz</url>
 
     <licenses>
         <license>

@@ -1,9 +1,9 @@
-package dev.proofly.ledgermem;
+package dev.proofly.getmnemo;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import dev.proofly.ledgermem.model.SearchInput;
-import dev.proofly.ledgermem.model.SearchResult;
+import dev.proofly.getmnemo.model.SearchInput;
+import dev.proofly.getmnemo.model.SearchResult;
 
 import java.io.IOException;
 import java.net.URI;
@@ -19,11 +19,11 @@ import java.util.Objects;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
-/** Official Java client for the LedgerMem API. */
-public final class LedgerMemClient {
+/** Official Java client for the Mnemo API. */
+public final class MnemoClient {
 
-    private static final String DEFAULT_BASE_URL = "https://api.proofly.dev";
-    private static final String USER_AGENT = "ledgermem-java/0.1.0";
+    private static final String DEFAULT_BASE_URL = "https://api.getmnemo.xyz";
+    private static final String USER_AGENT = "getmnemo-java/0.1.0";
     private static final int DEFAULT_MAX_RETRIES = 3;
     private static final long RETRY_BASE_DELAY_MS = 200L;
     private static final long RETRY_MAX_DELAY_MS = 5_000L;
@@ -36,10 +36,10 @@ public final class LedgerMemClient {
     private final MemoriesService memories;
     private final int maxRetries;
 
-    private LedgerMemClient(Builder b) {
-        this.apiKey = first(b.apiKey, System.getenv("LEDGERMEM_API_KEY"));
-        this.workspaceId = first(b.workspaceId, System.getenv("LEDGERMEM_WORKSPACE_ID"));
-        String url = first(b.baseUrl, System.getenv("LEDGERMEM_API_URL"));
+    private MnemoClient(Builder b) {
+        this.apiKey = first(b.apiKey, System.getenv("GETMNEMO_API_KEY"));
+        this.workspaceId = first(b.workspaceId, System.getenv("GETMNEMO_WORKSPACE_ID"));
+        String url = first(b.baseUrl, System.getenv("GETMNEMO_API_URL"));
         this.baseUrl = stripTrailingSlash(url == null ? DEFAULT_BASE_URL : url);
         this.http = b.httpClient != null
                 ? b.httpClient
@@ -114,7 +114,7 @@ public final class LedgerMemClient {
             return mapper.readValue(respBody, responseType);
         }
         if (lastIo != null) throw lastIo;
-        throw new IOException("ledgermem: request failed after retries");
+        throw new IOException("getmnemo: request failed after retries");
     }
 
     private static boolean isRetryableStatus(int status) {
@@ -216,8 +216,8 @@ public final class LedgerMemClient {
             return this;
         }
 
-        public LedgerMemClient build() {
-            return new LedgerMemClient(this);
+        public MnemoClient build() {
+            return new MnemoClient(this);
         }
     }
 

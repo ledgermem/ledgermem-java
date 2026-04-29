@@ -1,10 +1,10 @@
-package dev.proofly.ledgermem;
+package dev.proofly.getmnemo;
 
-import dev.proofly.ledgermem.model.AddMemoryInput;
-import dev.proofly.ledgermem.model.ListMemoriesInput;
-import dev.proofly.ledgermem.model.ListMemoriesResult;
-import dev.proofly.ledgermem.model.Memory;
-import dev.proofly.ledgermem.model.UpdateMemoryInput;
+import dev.proofly.getmnemo.model.AddMemoryInput;
+import dev.proofly.getmnemo.model.ListMemoriesInput;
+import dev.proofly.getmnemo.model.ListMemoriesResult;
+import dev.proofly.getmnemo.model.Memory;
+import dev.proofly.getmnemo.model.UpdateMemoryInput;
 
 import java.io.IOException;
 import java.net.URLEncoder;
@@ -14,9 +14,9 @@ import java.util.Map;
 /** Memory CRUD operations. */
 public final class MemoriesService {
 
-    private final LedgerMemClient client;
+    private final MnemoClient client;
 
-    MemoriesService(LedgerMemClient client) {
+    MemoriesService(MnemoClient client) {
         this.client = client;
     }
 
@@ -39,7 +39,7 @@ public final class MemoriesService {
     }
 
     public ListMemoriesResult list(ListMemoriesInput input) throws IOException, InterruptedException {
-        Map<String, String> query = LedgerMemClient.queryMap();
+        Map<String, String> query = MnemoClient.queryMap();
         if (input.limit() != null) query.put("limit", input.limit().toString());
         if (input.cursor() != null) query.put("cursor", input.cursor());
         if (input.actorId() != null) query.put("actorId", input.actorId());

@@ -1,9 +1,9 @@
-package dev.proofly.ledgermem;
+package dev.proofly.getmnemo;
 
 import com.sun.net.httpserver.HttpServer;
-import dev.proofly.ledgermem.model.AddMemoryInput;
-import dev.proofly.ledgermem.model.Memory;
-import dev.proofly.ledgermem.model.SearchInput;
+import dev.proofly.getmnemo.model.AddMemoryInput;
+import dev.proofly.getmnemo.model.Memory;
+import dev.proofly.getmnemo.model.SearchInput;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class LedgerMemClientTest {
+class MnemoClientTest {
 
     private HttpServer server;
     private String baseUrl;
@@ -56,7 +56,7 @@ class LedgerMemClientTest {
 
     @Test
     void addMemorySendsAuthAndWorkspaceHeaders() throws Exception {
-        LedgerMemClient client = LedgerMemClient.builder()
+        MnemoClient client = MnemoClient.builder()
                 .apiKey("key")
                 .workspaceId("ws")
                 .baseUrl(baseUrl)
@@ -73,7 +73,7 @@ class LedgerMemClientTest {
 
     @Test
     void searchRaisesApiExceptionOn401() {
-        LedgerMemClient client = LedgerMemClient.builder()
+        MnemoClient client = MnemoClient.builder()
                 .apiKey("x")
                 .workspaceId("ws")
                 .baseUrl(baseUrl)

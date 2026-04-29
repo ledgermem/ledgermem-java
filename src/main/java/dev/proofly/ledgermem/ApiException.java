@@ -1,15 +1,15 @@
-package dev.proofly.ledgermem;
+package dev.proofly.getmnemo;
 
 import java.io.IOException;
 
-/** Thrown when the LedgerMem API returns a non-2xx response. */
+/** Thrown when the Mnemo API returns a non-2xx response. */
 public class ApiException extends IOException {
 
     private final int status;
     private final String body;
 
     public ApiException(int status, String message, String body) {
-        super("ledgermem: " + status + " " + (message == null ? "" : message));
+        super("getmnemo: " + status + " " + (message == null ? "" : message));
         this.status = status;
         this.body = body;
     }

@@ -1,4 +1,4 @@
-package dev.proofly.ledgermem.model;
+package dev.proofly.getmnemo.model;
 
 public record ListMemoriesInput(
         Integer limit,

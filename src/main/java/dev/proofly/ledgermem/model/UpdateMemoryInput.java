@@ -1,4 +1,4 @@
-package dev.proofly.ledgermem.model;
+package dev.proofly.getmnemo.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
